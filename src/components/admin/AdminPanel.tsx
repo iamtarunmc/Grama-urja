@@ -1,52 +1,61 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useMemo } from "react";
 import { User, signOut } from "firebase/auth";
-import { auth, db } from "@/lib/firebase";
-import { ref, onValue, set, push, serverTimestamp, get } from "firebase/database";
+import { useAuth, useFirestore, useCollection } from "@/firebase";
+import { 
+  collection, 
+  doc, 
+  setDoc, 
+  addDoc, 
+  serverTimestamp, 
+  updateDoc 
+} from "firebase/firestore";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
-import { Power, PowerOff, Plus, LogOut, Settings, LayoutGrid, Loader2, MapPin } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { Power, PowerOff, Plus, LogOut, Settings, LayoutGrid, Loader2 } from "lucide-react";
+import { errorEmitter } from "@/firebase/error-emitter";
+import { FirestorePermissionError } from "@/firebase/errors";
 
 export function AdminPanel({ user }: { user: User }) {
-  const [villages, setVillages] = useState<any[]>([]);
+  const auth = useAuth();
+  const db = useFirestore();
   const [newVillageName, setNewVillageName] = useState("");
-  const [loading, setLoading] = useState(true);
   const [adding, setAdding] = useState(false);
 
-  useEffect(() => {
-    const villagesRef = ref(db, "power_status");
-    const unsubscribe = onValue(villagesRef, (snapshot) => {
-      const data = snapshot.val();
-      if (data) {
-        const list = Object.entries(data).map(([id, val]: [string, any]) => ({
-          id,
-          ...val
-        }));
-        setVillages(list);
-      }
-      setLoading(false);
+  const villagesQuery = useMemo(() => collection(db, "power_status"), [db]);
+  const { data: villages = [], loading } = useCollection(villagesQuery);
+
+  const toggleStatus = (id: string, currentStatus: "ON" | "OFF") => {
+    const newStatus = currentStatus === "ON" ? "OFF" : "ON";
+    const statusRef = doc(db, "power_status", id);
+    const timestamp = new Date().toISOString();
+
+    updateDoc(statusRef, {
+      status: newStatus,
+      updated_at: timestamp
+    }).catch(async () => {
+      errorEmitter.emit('permission-error', new FirestorePermissionError({
+        path: statusRef.path,
+        operation: 'update',
+        requestResourceData: { status: newStatus }
+      }));
     });
 
-    return () => unsubscribe();
-  }, []);
-
-  const toggleStatus = async (id: string, currentStatus: "ON" | "OFF") => {
-    const newStatus = currentStatus === "ON" ? "OFF" : "ON";
-    const timestamp = new Date().toISOString();
-    
-    // Update live status
-    await set(ref(db, `power_status/${id}/status`), newStatus);
-    await set(ref(db, `power_status/${id}/updated_at`), timestamp);
-
-    // Add to historical logs for AI
-    await push(ref(db, `historical_logs/${id}`), {
+    const logsRef = collection(db, "historical_logs", id, "events");
+    addDoc(logsRef, {
       status: newStatus,
       timestamp,
-      durationMinutes: 0 // Could calculate from previous timestamp if needed
+      durationMinutes: 0
+    }).catch(async () => {
+      errorEmitter.emit('permission-error', new FirestorePermissionError({
+        path: logsRef.path,
+        operation: 'create'
+      }));
     });
   };
 
@@ -58,14 +67,21 @@ export function AdminPanel({ user }: { user: User }) {
     const id = newVillageName.toLowerCase().replace(/\s+/g, '-');
     const timestamp = new Date().toISOString();
     
-    await set(ref(db, `power_status/${id}`), {
+    const villageRef = doc(db, "power_status", id);
+    setDoc(villageRef, {
       name: newVillageName,
       status: "ON",
       updated_at: timestamp
+    }).then(() => {
+      setNewVillageName("");
+      setAdding(false);
+    }).catch(async () => {
+      setAdding(false);
+      errorEmitter.emit('permission-error', new FirestorePermissionError({
+        path: villageRef.path,
+        operation: 'create'
+      }));
     });
-
-    setNewVillageName("");
-    setAdding(false);
   };
 
   return (
@@ -86,7 +102,6 @@ export function AdminPanel({ user }: { user: User }) {
         </Button>
       </header>
 
-      {/* Add New Village Card */}
       <Card className="border-none shadow-lg rounded-2xl overflow-hidden">
         <CardHeader className="bg-primary text-primary-foreground">
           <CardTitle className="flex items-center gap-2">
@@ -110,7 +125,6 @@ export function AdminPanel({ user }: { user: User }) {
         </CardContent>
       </Card>
 
-      {/* Village Management List */}
       <div className="space-y-4">
         <div className="flex items-center justify-between px-2">
           <h2 className="text-xl font-bold flex items-center gap-2">
@@ -118,7 +132,7 @@ export function AdminPanel({ user }: { user: User }) {
             Grid Management
           </h2>
           <Badge variant="outline" className="font-bold text-primary border-primary">
-            {villages.length} Villages Active
+            {villages?.length || 0} Villages Active
           </Badge>
         </div>
 
@@ -128,7 +142,7 @@ export function AdminPanel({ user }: { user: User }) {
           </div>
         ) : (
           <div className="grid gap-4">
-            {villages.map((v) => (
+            {villages?.map((v: any) => (
               <Card key={v.id} className="border-2 shadow-sm rounded-2xl overflow-hidden transition-all hover:border-primary/50">
                 <CardContent className="p-6 flex items-center justify-between">
                   <div className="flex items-center gap-4">
@@ -142,7 +156,7 @@ export function AdminPanel({ user }: { user: User }) {
                           Power {v.status}
                         </Badge>
                         <span className="text-xs text-muted-foreground font-medium">
-                          Last Updated: {new Date(v.updated_at).toLocaleTimeString()}
+                          Last Updated: {v.updated_at ? new Date(v.updated_at).toLocaleTimeString() : 'N/A'}
                         </span>
                       </div>
                     </div>
@@ -162,7 +176,7 @@ export function AdminPanel({ user }: { user: User }) {
                 </CardContent>
               </Card>
             ))}
-            {villages.length === 0 && (
+            {(!villages || villages.length === 0) && (
               <div className="text-center py-12 bg-white rounded-2xl border-2 border-dashed">
                 <p className="text-muted-foreground font-medium">No villages managed yet. Add your first village above.</p>
               </div>

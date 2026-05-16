@@ -2,8 +2,8 @@
 
 import { useState } from "react";
 import { signInWithEmailAndPassword, createUserWithEmailAndPassword } from "firebase/auth";
-import { auth, db } from "@/lib/firebase";
-import { ref, set } from "firebase/database";
+import { useAuth, useFirestore } from "@/firebase";
+import { doc, setDoc } from "firebase/firestore";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -11,6 +11,8 @@ import { Label } from "@/components/ui/label";
 import { Zap, Leaf, Mail, Lock, Loader2 } from "lucide-react";
 
 export function AuthPortal() {
+  const auth = useAuth();
+  const db = useFirestore();
   const [isLogin, setIsLogin] = useState(true);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -27,9 +29,9 @@ export function AuthPortal() {
         await signInWithEmailAndPassword(auth, email, password);
       } else {
         const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-        // Initialize user record
         const role = email.endsWith("@admin.com") ? "admin" : "resident";
-        await set(ref(db, `users/${userCredential.user.uid}`), {
+        const userRef = doc(db, "users", userCredential.user.uid);
+        await setDoc(userRef, {
           email,
           role,
           created_at: new Date().toISOString()

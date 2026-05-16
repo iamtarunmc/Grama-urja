@@ -1,42 +1,41 @@
 "use client";
 
-import { useState } from "react";
-import { db } from "@/lib/firebase";
-import { ref, get, query, limitToLast } from "firebase/database";
+import { useState, useMemo } from "react";
+import { useFirestore, useCollection } from "@/firebase";
+import { collection, query, orderBy, limit } from "firebase/firestore";
 import { predictPowerOutages, PredictPowerOutagesOutput } from "@/ai/flows/predict-power-outages-flow";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { TrendingUp, AlertTriangle, Calendar, Brain, Loader2, CheckCircle2 } from "lucide-react";
+import { TrendingUp, AlertTriangle, Calendar, Brain, Loader2, CheckCircle2, Clock, RefreshCcw } from "lucide-react";
 
 export function OutagePredictor({ villageId, villageName }: { villageId: string; villageName: string }) {
+  const db = useFirestore();
   const [prediction, setPrediction] = useState<PredictPowerOutagesOutput | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+
+  const logsQuery = useMemo(() => {
+    return query(
+      collection(db, "historical_logs", villageId, "events"),
+      orderBy("timestamp", "desc"),
+      limit(20)
+    );
+  }, [db, villageId]);
+
+  const { data: logs = [] } = useCollection(logsQuery);
 
   const handlePredict = async () => {
     setLoading(true);
     setError("");
     try {
-      // Fetch historical logs from RTDB
-      const logsRef = ref(db, `historical_logs/${villageId}`);
-      const logsQuery = query(logsRef, limitToLast(20));
-      const snapshot = await get(logsQuery);
-      
-      const historicalData = [];
-      if (snapshot.exists()) {
-        const data = snapshot.val();
-        Object.values(data).forEach((log: any) => {
-          historicalData.push({
-            villageName,
-            status: log.status,
-            timestamp: log.timestamp,
-            durationMinutes: log.durationMinutes || 0
-          });
-        });
-      }
+      const historicalData = logs.map((log: any) => ({
+        villageName,
+        status: log.status,
+        timestamp: log.timestamp,
+        durationMinutes: log.durationMinutes || 0
+      }));
 
-      // If no history, provide some dummy context for the tool or just notify user
       if (historicalData.length === 0) {
         historicalData.push({
           villageName,
@@ -154,23 +153,3 @@ export function OutagePredictor({ villageId, villageName }: { villageId: string;
     </Card>
   );
 }
-
-const RefreshCcw = ({ className }: { className?: string }) => (
-  <svg
-    xmlns="http://www.w3.org/2000/svg"
-    width="24"
-    height="24"
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth="2"
-    strokeLinecap="round"
-    strokeLinejoin="round"
-    className={className}
-  >
-    <path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
-    <path d="M3 3v5h5" />
-    <path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16" />
-    <path d="M16 16h5v5" />
-  </svg>
-);

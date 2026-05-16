@@ -1,36 +1,21 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { db } from "@/lib/firebase";
-import { ref, onValue } from "firebase/database";
+import { useState, useMemo } from "react";
+import { useFirestore, useCollection } from "@/firebase";
+import { collection } from "firebase/firestore";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { MapPin, Search, ChevronRight, Loader2 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 
 export function VillageSelector({ onSelect }: { onSelect: (id: string) => void }) {
-  const [villages, setVillages] = useState<{ id: string; name: string }[]>([]);
+  const db = useFirestore();
   const [search, setSearch] = useState("");
-  const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    const villagesRef = ref(db, "power_status");
-    const unsubscribe = onValue(villagesRef, (snapshot) => {
-      const data = snapshot.val();
-      if (data) {
-        const list = Object.entries(data).map(([id, val]: [string, any]) => ({
-          id,
-          name: val.name
-        }));
-        setVillages(list);
-      }
-      setLoading(false);
-    });
+  const villagesQuery = useMemo(() => collection(db, "power_status"), [db]);
+  const { data: villages = [], loading } = useCollection(villagesQuery);
 
-    return () => unsubscribe();
-  }, []);
-
-  const filtered = villages.filter(v => v.name.toLowerCase().includes(search.toLowerCase()));
+  const filtered = (villages || []).filter((v: any) => v.name.toLowerCase().includes(search.toLowerCase()));
 
   return (
     <Card className="border-none shadow-lg rounded-2xl overflow-hidden">
@@ -59,7 +44,7 @@ export function VillageSelector({ onSelect }: { onSelect: (id: string) => void }
           </div>
         ) : (
           <div className="space-y-3">
-            {filtered.length > 0 ? filtered.map((village) => (
+            {filtered.length > 0 ? filtered.map((village: any) => (
               <Button
                 key={village.id}
                 variant="outline"

@@ -1,13 +1,12 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { User, signOut } from "firebase/auth";
-import { auth, db } from "@/lib/firebase";
-import { ref, onValue, get } from "firebase/database";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { useAuth, useFirestore, useDoc } from "@/firebase";
+import { doc } from "firebase/firestore";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { MapPin, LogOut, RefreshCcw, Power, PowerOff, Clock, TrendingUp } from "lucide-react";
+import { MapPin, LogOut, RefreshCcw, Power, PowerOff, Clock } from "lucide-react";
 import { VillageSelector } from "./VillageSelector";
 import { OutagePredictor } from "./OutagePredictor";
 import { cn } from "@/lib/utils";
@@ -19,30 +18,23 @@ interface VillageStatus {
 }
 
 export function Dashboard({ user }: { user: User }) {
+  const auth = useAuth();
+  const db = useFirestore();
   const [selectedVillageId, setSelectedVillageId] = useState<string | null>(null);
-  const [villageData, setVillageData] = useState<VillageStatus | null>(null);
-  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    // Load local storage village
     const saved = localStorage.getItem("selectedVillageId");
     if (saved) {
       setSelectedVillageId(saved);
     }
   }, []);
 
-  useEffect(() => {
-    if (!selectedVillageId) return;
+  const villageDocRef = useMemo(() => {
+    if (!selectedVillageId) return null;
+    return doc(db, "power_status", selectedVillageId);
+  }, [db, selectedVillageId]);
 
-    const statusRef = ref(db, `power_status/${selectedVillageId}`);
-    const unsubscribe = onValue(statusRef, (snapshot) => {
-      if (snapshot.exists()) {
-        setVillageData(snapshot.val());
-      }
-    });
-
-    return () => unsubscribe();
-  }, [selectedVillageId]);
+  const { data: villageData } = useDoc<VillageStatus>(villageDocRef);
 
   const handleVillageSelect = (id: string) => {
     setSelectedVillageId(id);
@@ -56,7 +48,7 @@ export function Dashboard({ user }: { user: User }) {
         timeStyle: 'short' 
       });
     } catch {
-      return ts;
+      return ts || 'N/A';
     }
   };
 
@@ -79,7 +71,6 @@ export function Dashboard({ user }: { user: User }) {
         <VillageSelector onSelect={handleVillageSelect} />
       ) : (
         <div className="space-y-6">
-          {/* Village Info Card */}
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 p-4 bg-white rounded-2xl border shadow-sm">
             <div className="flex items-center gap-3">
               <MapPin className="h-6 w-6 text-primary" />
@@ -94,7 +85,6 @@ export function Dashboard({ user }: { user: User }) {
             </Button>
           </div>
 
-          {/* Main Status Indicator */}
           <Card className={cn(
             "overflow-hidden border-none shadow-xl transition-all duration-500",
             villageData?.status === "ON" ? "bg-primary text-primary-foreground" : "bg-accent text-accent-foreground"
@@ -127,7 +117,6 @@ export function Dashboard({ user }: { user: User }) {
             </CardContent>
           </Card>
 
-          {/* AI Predictor Tool */}
           {selectedVillageId && villageData && (
             <OutagePredictor villageId={selectedVillageId} villageName={villageData.name} />
           )}

@@ -5,7 +5,7 @@ import { ref, onValue } from "firebase/database";
 import { AuthPortal } from "@/components/auth/AuthPortal";
 import { Dashboard } from "@/components/dashboard/Dashboard";
 import { AdminPanel } from "@/components/admin/AdminPanel";
-import { Loader2, Settings, ExternalLink, Activity } from "lucide-react";
+import { Settings, ExternalLink, Activity } from "lucide-react";
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -25,18 +25,21 @@ export default function Home() {
 
     setLoadingRole(true);
     const userRef = ref(db, `users/${user.uid}/role`);
+    
+    // Use onValue with error handling
     const unsubscribe = onValue(userRef, (snapshot) => {
       setRole(snapshot.val());
       setLoadingRole(false);
-    }, () => {
+    }, (err) => {
+      console.warn("Role check failed (likely permission rules):", err);
       setLoadingRole(false);
     });
 
     return () => unsubscribe();
   }, [db, user]);
 
-  // If Firebase is not configured, show the setup guide
-  if (!auth || !db) {
+  // 1. Show setup guide if config is missing
+  if (!auth) {
     return (
       <div className="flex min-h-screen items-center justify-center p-6 bg-slate-50">
         <Card className="max-w-xl w-full shadow-2xl border-t-4 border-t-primary rounded-2xl overflow-hidden">
@@ -71,7 +74,7 @@ export default function Home() {
                 </a>
               </Button>
               <p className="text-center text-sm text-muted-foreground">
-                Restart your dev server (the terminal) after updating environment variables.
+                Restart your dev server after updating environment variables.
               </p>
             </div>
           </CardContent>
@@ -80,7 +83,8 @@ export default function Home() {
     );
   }
 
-  if (authLoading || loadingRole) {
+  // 2. Handle Authentication Loading
+  if (authLoading) {
     return (
       <div className="flex flex-col h-screen w-full items-center justify-center bg-background">
         <Activity className="h-12 w-12 animate-pulse text-primary mb-4" />
@@ -89,11 +93,24 @@ export default function Home() {
     );
   }
 
+  // 3. Show Login if not authenticated
   if (!user) {
     return <AuthPortal />;
   }
 
-  const isAdmin = role === "admin" || user.email?.endsWith("@admin.com");
+  // 4. Resolve Role (Admins are recognized by email even if DB lookup fails)
+  const isEmailAdmin = user.email?.toLowerCase().endsWith("@admin.com");
+  
+  if (loadingRole && !isEmailAdmin) {
+    return (
+      <div className="flex flex-col h-screen w-full items-center justify-center bg-background">
+        <Activity className="h-12 w-12 animate-pulse text-primary mb-4" />
+        <p className="text-muted-foreground font-medium animate-pulse">Verifying Access...</p>
+      </div>
+    );
+  }
+
+  const isAdmin = isEmailAdmin || role === "admin";
 
   return (
     <div className="min-h-screen bg-background font-body">

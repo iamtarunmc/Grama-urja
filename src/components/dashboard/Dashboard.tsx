@@ -1,26 +1,28 @@
+
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
-import { User, signOut } from "firebase/auth";
-import { useAuth, useFirestore, useDoc } from "@/firebase";
-import { doc } from "firebase/firestore";
+import { useState, useEffect } from "react";
+import { signOut } from "firebase/auth";
+import { ref, onValue } from "firebase/database";
+import { useAuth, useDatabase } from "@/firebase";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { MapPin, LogOut, RefreshCcw, Power, PowerOff, Clock } from "lucide-react";
+import { MapPin, LogOut, RefreshCcw, Power, PowerOff, Clock, Loader2 } from "lucide-react";
 import { VillageSelector } from "./VillageSelector";
-import { OutagePredictor } from "./OutagePredictor";
 import { cn } from "@/lib/utils";
 
 interface VillageStatus {
   name: string;
   status: "ON" | "OFF";
-  updated_at: string;
+  updatedAt: string;
 }
 
-export function Dashboard({ user }: { user: User }) {
+export function Dashboard() {
   const auth = useAuth();
-  const db = useFirestore();
+  const db = useDatabase();
   const [selectedVillageId, setSelectedVillageId] = useState<string | null>(null);
+  const [villageData, setVillageData] = useState<VillageStatus | null>(null);
+  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     const saved = localStorage.getItem("selectedVillageId");
@@ -29,12 +31,21 @@ export function Dashboard({ user }: { user: User }) {
     }
   }, []);
 
-  const villageDocRef = useMemo(() => {
-    if (!selectedVillageId) return null;
-    return doc(db, "power_status", selectedVillageId);
-  }, [db, selectedVillageId]);
+  useEffect(() => {
+    if (!selectedVillageId) {
+      setVillageData(null);
+      return;
+    }
 
-  const { data: villageData } = useDoc<VillageStatus>(villageDocRef);
+    setLoading(true);
+    const statusRef = ref(db, `villages/${selectedVillageId}`);
+    const unsubscribe = onValue(statusRef, (snapshot) => {
+      setVillageData(snapshot.val());
+      setLoading(false);
+    });
+
+    return () => unsubscribe();
+  }, [db, selectedVillageId]);
 
   const handleVillageSelect = (id: string) => {
     setSelectedVillageId(id);
@@ -76,7 +87,7 @@ export function Dashboard({ user }: { user: User }) {
               <MapPin className="h-6 w-6 text-primary" />
               <div>
                 <p className="text-sm text-muted-foreground font-medium uppercase tracking-wider">Active Village</p>
-                <h2 className="text-2xl font-bold">{villageData?.name || "Loading..."}</h2>
+                <h2 className="text-2xl font-bold">{villageData?.name || (loading ? "Loading..." : "Unknown Village")}</h2>
               </div>
             </div>
             <Button variant="outline" size="sm" onClick={() => setSelectedVillageId(null)} className="rounded-xl">
@@ -85,40 +96,39 @@ export function Dashboard({ user }: { user: User }) {
             </Button>
           </div>
 
-          <Card className={cn(
-            "overflow-hidden border-none shadow-xl transition-all duration-500",
-            villageData?.status === "ON" ? "bg-primary text-primary-foreground" : "bg-accent text-accent-foreground"
-          )}>
-            <CardContent className="p-10 flex flex-col items-center text-center space-y-6">
-              <div className={cn(
-                "p-8 rounded-full bg-white/20 power-glow",
-                villageData?.status === "ON" ? "text-primary-foreground" : "text-accent-foreground"
-              )}>
-                {villageData?.status === "ON" ? (
-                  <Power className="h-24 w-24" strokeWidth={2.5} />
-                ) : (
-                  <PowerOff className="h-24 w-24" strokeWidth={2.5} />
-                )}
-              </div>
-              
-              <div className="space-y-2">
-                <p className="text-xl font-medium opacity-90">Current Status</p>
-                <h3 className="text-6xl font-black tracking-tighter uppercase">
-                  Power {villageData?.status || "---"}
-                </h3>
-              </div>
-
-              {villageData?.updated_at && (
-                <div className="flex items-center gap-2 px-4 py-2 bg-black/10 rounded-full">
-                  <Clock className="h-4 w-4" />
-                  <span className="text-sm font-medium">Updated: {formatTimestamp(villageData.updated_at)}</span>
+          {loading ? (
+            <div className="flex justify-center py-20">
+              <Loader2 className="h-12 w-12 animate-spin text-primary" />
+            </div>
+          ) : (
+            <Card className={cn(
+              "overflow-hidden border-none shadow-xl transition-all duration-500",
+              villageData?.status === "ON" ? "bg-primary text-primary-foreground" : "bg-accent text-accent-foreground"
+            )}>
+              <CardContent className="p-10 flex flex-col items-center text-center space-y-6">
+                <div className="p-8 rounded-full bg-white/20 power-glow">
+                  {villageData?.status === "ON" ? (
+                    <Power className="h-24 w-24" strokeWidth={2.5} />
+                  ) : (
+                    <PowerOff className="h-24 w-24" strokeWidth={2.5} />
+                  )}
                 </div>
-              )}
-            </CardContent>
-          </Card>
+                
+                <div className="space-y-2">
+                  <p className="text-xl font-medium opacity-90">Current Status</p>
+                  <h3 className="text-6xl font-black tracking-tighter uppercase">
+                    Power {villageData?.status || "OFFLINE"}
+                  </h3>
+                </div>
 
-          {selectedVillageId && villageData && (
-            <OutagePredictor villageId={selectedVillageId} villageName={villageData.name} />
+                {villageData?.updatedAt && (
+                  <div className="flex items-center gap-2 px-4 py-2 bg-black/10 rounded-full">
+                    <Clock className="h-4 w-4" />
+                    <span className="text-sm font-medium">Last Check: {formatTimestamp(villageData.updatedAt)}</span>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
           )}
         </div>
       )}

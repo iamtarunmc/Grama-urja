@@ -10,7 +10,8 @@ import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { Power, PowerOff, Plus, LogOut, Settings, LayoutGrid, Loader2 } from "lucide-react";
+import { Power, PowerOff, Plus, LogOut, Settings, LayoutGrid, Loader2, AlertCircle } from "lucide-react";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
 export function AdminPanel() {
   const auth = useAuth();
@@ -19,8 +20,11 @@ export function AdminPanel() {
   const [newVillageName, setNewVillageName] = useState("");
   const [loading, setLoading] = useState(true);
   const [adding, setAdding] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    if (!db) return;
+
     const villagesRef = ref(db, 'villages');
     const unsubscribe = onValue(villagesRef, (snapshot) => {
       const data = snapshot.val();
@@ -34,34 +38,53 @@ export function AdminPanel() {
         setVillages([]);
       }
       setLoading(false);
+      setError(null);
+    }, (err) => {
+      console.error("Database read error:", err);
+      setError("Permission Denied: Ensure your Database Rules allow authenticated users to read 'villages'.");
+      setLoading(false);
     });
 
     return () => unsubscribe();
   }, [db]);
 
   const toggleStatus = (id: string, currentStatus: "ON" | "OFF") => {
+    if (!db) return;
     const newStatus = currentStatus === "ON" ? "OFF" : "ON";
     const statusRef = ref(db, `villages/${id}`);
+    
     update(statusRef, {
       status: newStatus,
       updatedAt: new Date().toISOString()
+    }).catch((err) => {
+      console.error("Status update error:", err);
+      setError("Failed to update status. Check your Database Rules.");
     });
   };
 
   const addVillage = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newVillageName.trim()) return;
+    if (!newVillageName.trim() || !db) return;
     
     setAdding(true);
-    const id = newVillageName.toLowerCase().replace(/\s+/g, '-');
+    setError(null);
+
+    // Create a safe URL-friendly ID
+    const id = newVillageName.toLowerCase().trim().replace(/[^a-z0-9]/g, '-');
     const villageRef = ref(db, `villages/${id}`);
     
     set(villageRef, {
-      name: newVillageName,
+      name: newVillageName.trim(),
       status: "ON",
       updatedAt: new Date().toISOString()
-    }).then(() => {
+    })
+    .then(() => {
       setNewVillageName("");
+      setAdding(false);
+    })
+    .catch((err) => {
+      console.error("Add village error:", err);
+      setError("Permission Denied: Ensure your Database Rules allow writes to 'villages'.");
       setAdding(false);
     });
   };
@@ -78,11 +101,19 @@ export function AdminPanel() {
             <p className="text-sm text-muted-foreground font-medium">Grid Management</p>
           </div>
         </div>
-        <Button variant="outline" size="sm" onClick={() => signOut(auth)} className="rounded-xl">
+        <Button variant="outline" size="sm" onClick={() => auth && signOut(auth)} className="rounded-xl">
           <LogOut className="h-4 w-4 mr-2" />
           Sign Out
         </Button>
       </header>
+
+      {error && (
+        <Alert variant="destructive" className="rounded-xl">
+          <AlertCircle className="h-4 w-4" />
+          <AlertTitle>Database Error</AlertTitle>
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      )}
 
       <Card className="border-none shadow-lg rounded-2xl overflow-hidden">
         <CardHeader className="bg-primary text-primary-foreground">
@@ -93,15 +124,23 @@ export function AdminPanel() {
           <CardDescription className="text-primary-foreground/80">Connect a new village to the monitoring system.</CardDescription>
         </CardHeader>
         <CardContent className="p-6">
-          <form onSubmit={addVillage} className="flex gap-4">
+          <form onSubmit={addVillage} className="flex flex-col sm:flex-row gap-4">
             <Input
-              placeholder="Village Name"
+              placeholder="Village Name (e.g. Tumkur)"
               value={newVillageName}
               onChange={(e) => setNewVillageName(e.target.value)}
-              className="h-12 text-lg rounded-xl"
+              className="h-12 text-lg rounded-xl flex-1"
+              disabled={adding}
             />
-            <Button type="submit" disabled={adding} className="h-12 px-8 rounded-xl font-bold">
-              {adding ? <Loader2 className="h-5 w-5 animate-spin" /> : "Add Village"}
+            <Button type="submit" disabled={adding || !newVillageName.trim()} className="h-12 px-8 rounded-xl font-bold">
+              {adding ? (
+                <>
+                  <Loader2 className="h-5 w-5 animate-spin mr-2" />
+                  Adding...
+                </>
+              ) : (
+                "Add Village"
+              )}
             </Button>
           </form>
         </CardContent>
@@ -124,29 +163,35 @@ export function AdminPanel() {
           </div>
         ) : (
           <div className="grid gap-4">
-            {villages.map((v) => (
-              <Card key={v.id} className="border-2 shadow-sm rounded-2xl overflow-hidden">
-                <CardContent className="p-6 flex items-center justify-between">
-                  <div className="flex items-center gap-4">
-                    <div className={`p-3 rounded-2xl ${v.status === 'ON' ? 'bg-primary/10 text-primary' : 'bg-accent/10 text-accent'}`}>
-                      {v.status === 'ON' ? <Power className="h-6 w-6" /> : <PowerOff className="h-6 w-6" />}
+            {villages.length > 0 ? (
+              villages.map((v) => (
+                <Card key={v.id} className="border-2 shadow-sm rounded-2xl overflow-hidden">
+                  <CardContent className="p-6 flex items-center justify-between">
+                    <div className="flex items-center gap-4">
+                      <div className={`p-3 rounded-2xl ${v.status === 'ON' ? 'bg-primary/10 text-primary' : 'bg-accent/10 text-accent'}`}>
+                        {v.status === 'ON' ? <Power className="h-6 w-6" /> : <PowerOff className="h-6 w-6" />}
+                      </div>
+                      <div>
+                        <h3 className="text-xl font-bold">{v.name}</h3>
+                        <Badge className={v.status === 'ON' ? 'bg-primary' : 'bg-accent'}>
+                          {v.status}
+                        </Badge>
+                      </div>
                     </div>
-                    <div>
-                      <h3 className="text-xl font-bold">{v.name}</h3>
-                      <Badge className={v.status === 'ON' ? 'bg-primary' : 'bg-accent'}>
-                        {v.status}
-                      </Badge>
-                    </div>
-                  </div>
-                  
-                  <Switch
-                    checked={v.status === "ON"}
-                    onCheckedChange={() => toggleStatus(v.id, v.status)}
-                    className="data-[state=checked]:bg-primary data-[state=unchecked]:bg-accent"
-                  />
-                </CardContent>
-              </Card>
-            ))}
+                    
+                    <Switch
+                      checked={v.status === "ON"}
+                      onCheckedChange={() => toggleStatus(v.id, v.status)}
+                      className="data-[state=checked]:bg-primary data-[state=unchecked]:bg-accent"
+                    />
+                  </CardContent>
+                </Card>
+              ))
+            ) : (
+              <div className="text-center py-12 border-2 border-dashed rounded-2xl text-muted-foreground">
+                <p>No villages found. Use the form above to add one.</p>
+              </div>
+            )}
           </div>
         )}
       </div>

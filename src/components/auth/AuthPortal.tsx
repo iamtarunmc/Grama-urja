@@ -8,7 +8,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter }
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
-import { Zap, Leaf, Mail, Lock, Loader2 } from "lucide-react";
+import { Zap, Leaf, Mail, Lock, Loader2, Info } from "lucide-react";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 
 export function AuthPortal() {
   const auth = useAuth();
@@ -21,6 +22,8 @@ export function AuthPortal() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!auth || !db) return;
+    
     setLoading(true);
     setError("");
 
@@ -29,9 +32,8 @@ export function AuthPortal() {
         await signInWithEmailAndPassword(auth, email, password);
       } else {
         const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-        const role = email.endsWith("@admin.com") ? "admin" : "resident";
+        const role = email.toLowerCase().endsWith("@admin.com") ? "admin" : "resident";
         
-        // Use Realtime Database (ref/set) instead of Firestore
         const userRef = ref(db, `users/${userCredential.user.uid}`);
         await set(userRef, {
           email,
@@ -40,6 +42,7 @@ export function AuthPortal() {
         });
       }
     } catch (err: any) {
+      console.error("Auth error:", err);
       setError(err.message || "An authentication error occurred.");
     } finally {
       setLoading(false);
@@ -61,6 +64,15 @@ export function AuthPortal() {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
+          {!isLogin && (
+            <Alert className="bg-primary/5 border-primary/20 rounded-xl">
+              <Info className="h-4 w-4 text-primary" />
+              <AlertDescription className="text-xs text-primary/80 font-medium">
+                Tip: Sign up with an <strong>@admin.com</strong> email to manage villages and status.
+              </AlertDescription>
+            </Alert>
+          )}
+
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="email">Email Address</Label>

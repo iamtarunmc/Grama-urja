@@ -6,9 +6,10 @@ import { ref, onValue } from "firebase/database";
 import { useAuth, useDatabase } from "@/firebase";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { MapPin, LogOut, RefreshCcw, Power, PowerOff, Clock, Loader2 } from "lucide-react";
+import { MapPin, LogOut, RefreshCcw, Power, PowerOff, Clock, Loader2, AlertCircle } from "lucide-react";
 import { VillageSelector } from "./VillageSelector";
 import { cn } from "@/lib/utils";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
 interface VillageStatus {
   name: string;
@@ -22,6 +23,7 @@ export function Dashboard() {
   const [selectedVillageId, setSelectedVillageId] = useState<string | null>(null);
   const [villageData, setVillageData] = useState<VillageStatus | null>(null);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     const saved = localStorage.getItem("selectedVillageId");
@@ -31,7 +33,7 @@ export function Dashboard() {
   }, []);
 
   useEffect(() => {
-    if (!selectedVillageId) {
+    if (!selectedVillageId || !db) {
       setVillageData(null);
       return;
     }
@@ -40,6 +42,11 @@ export function Dashboard() {
     const statusRef = ref(db, `villages/${selectedVillageId}`);
     const unsubscribe = onValue(statusRef, (snapshot) => {
       setVillageData(snapshot.val());
+      setLoading(false);
+      setError(null);
+    }, (err) => {
+      console.error("Village data error:", err);
+      setError("Permission Denied: Ensure your database rules allow authenticated users to read village data.");
       setLoading(false);
     });
 
@@ -71,11 +78,19 @@ export function Dashboard() {
           </div>
           <h1 className="text-2xl font-bold text-primary">Grama-Urja</h1>
         </div>
-        <Button variant="ghost" size="sm" onClick={() => signOut(auth)} className="text-muted-foreground hover:text-destructive">
+        <Button variant="ghost" size="sm" onClick={() => auth && signOut(auth)} className="text-muted-foreground hover:text-destructive">
           <LogOut className="h-4 w-4 mr-2" />
           Log Out
         </Button>
       </header>
+
+      {error && (
+        <Alert variant="destructive" className="rounded-xl">
+          <AlertCircle className="h-4 w-4" />
+          <AlertTitle>Data Sync Error</AlertTitle>
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      )}
 
       {!selectedVillageId ? (
         <VillageSelector onSelect={handleVillageSelect} />

@@ -12,14 +12,12 @@ export const firebaseConfig = {
   appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID || ""
 };
 
-// Diagnostic check for the developer
+// Log warnings instead of errors to avoid triggering the Next.js error overlay
 if (typeof window !== 'undefined') {
   if (!firebaseConfig.apiKey) {
     console.warn("⚠️ Firebase API Key is missing. Check NEXT_PUBLIC_FIREBASE_API_KEY in .env");
   }
   if (!firebaseConfig.databaseURL) {
-    console.error("❌ Firebase Database URL is missing! Realtime Database will not work. Check NEXT_PUBLIC_FIREBASE_DATABASE_URL in .env. It should look like https://your-project-id.firebaseio.com");
-  } else if (!firebaseConfig.databaseURL.startsWith("https://")) {
-    console.error("❌ Firebase Database URL is invalid. It must start with https://");
+    console.warn("⚠️ Firebase Database URL is missing. Realtime Database features will be disabled until NEXT_PUBLIC_FIREBASE_DATABASE_URL is added to .env");
   }
 }

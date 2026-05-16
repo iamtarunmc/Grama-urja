@@ -4,25 +4,35 @@ import { getAuth, Auth } from 'firebase/auth';
 import { firebaseConfig } from './config';
 
 /**
- * Initializes Firebase services.
- * Realtime Database requires a valid databaseURL in the config.
+ * Safely initializes Firebase services.
+ * Returns null for services if configuration is missing or invalid.
  */
 export function initializeFirebase(): {
-  firebaseApp: FirebaseApp;
+  firebaseApp: FirebaseApp | null;
   database: Database | null;
-  auth: Auth;
+  auth: Auth | null;
 } {
-  const firebaseApp = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
+  // Defensive check: If no API key, don't initialize to prevent fatal crash
+  const hasApiKey = !!firebaseConfig.apiKey && firebaseConfig.apiKey.length > 10;
   
-  // Initialize Database with explicit URL check to avoid fatal parsing errors
-  // If URL is missing, we return null for database to prevent app crash
-  const database = firebaseConfig.databaseURL && firebaseConfig.databaseURL.startsWith("https://") 
-    ? getDatabase(firebaseApp, firebaseConfig.databaseURL)
-    : null;
-    
-  const auth = getAuth(firebaseApp);
+  if (!hasApiKey) {
+    return { firebaseApp: null, database: null, auth: null };
+  }
 
-  return { firebaseApp, database, auth };
+  try {
+    const firebaseApp = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
+    const auth = getAuth(firebaseApp);
+    
+    // Database requires a valid URL
+    const database = firebaseConfig.databaseURL && firebaseConfig.databaseURL.startsWith("https://") 
+      ? getDatabase(firebaseApp, firebaseConfig.databaseURL)
+      : null;
+
+    return { firebaseApp, database, auth };
+  } catch (error) {
+    console.error("Firebase initialization failed:", error);
+    return { firebaseApp: null, database: null, auth: null };
+  }
 }
 
 export * from './provider';

@@ -6,18 +6,18 @@ import { Database } from 'firebase/database';
 import { Auth } from 'firebase/auth';
 
 interface FirebaseContextProps {
-  firebaseApp: FirebaseApp;
+  firebaseApp: FirebaseApp | null;
   database: Database | null;
-  auth: Auth;
+  auth: Auth | null;
 }
 
 const FirebaseContext = createContext<FirebaseContextProps | undefined>(undefined);
 
 export const FirebaseProvider: React.FC<{
   children: ReactNode;
-  firebaseApp: FirebaseApp;
+  firebaseApp: FirebaseApp | null;
   database: Database | null;
-  auth: Auth;
+  auth: Auth | null;
 }> = ({ children, firebaseApp, database, auth }) => {
   return (
     <FirebaseContext.Provider value={{ firebaseApp, database, auth }}>
@@ -35,11 +35,5 @@ export const useFirebase = () => {
 };
 
 export const useFirebaseApp = () => useFirebase().firebaseApp;
-export const useDatabase = () => {
-  const db = useFirebase().database;
-  if (!db) {
-    console.warn("Realtime Database is not initialized. Check your databaseURL in .env");
-  }
-  return db;
-};
+export const useDatabase = () => useFirebase().database;
 export const useAuth = () => useFirebase().auth;

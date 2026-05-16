@@ -2,8 +2,8 @@
 
 import { useState } from "react";
 import { signInWithEmailAndPassword, createUserWithEmailAndPassword } from "firebase/auth";
-import { useAuth, useFirestore } from "@/firebase";
-import { doc, setDoc } from "firebase/firestore";
+import { useAuth, useDatabase } from "@/firebase";
+import { ref, set } from "firebase/database";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -12,7 +12,7 @@ import { Zap, Leaf, Mail, Lock, Loader2 } from "lucide-react";
 
 export function AuthPortal() {
   const auth = useAuth();
-  const db = useFirestore();
+  const db = useDatabase();
   const [isLogin, setIsLogin] = useState(true);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -30,11 +30,13 @@ export function AuthPortal() {
       } else {
         const userCredential = await createUserWithEmailAndPassword(auth, email, password);
         const role = email.endsWith("@admin.com") ? "admin" : "resident";
-        const userRef = doc(db, "users", userCredential.user.uid);
-        await setDoc(userRef, {
+        
+        // Use Realtime Database (ref/set) instead of Firestore
+        const userRef = ref(db, `users/${userCredential.user.uid}`);
+        await set(userRef, {
           email,
           role,
-          created_at: new Date().toISOString()
+          createdAt: new Date().toISOString()
         });
       }
     } catch (err: any) {

@@ -1,4 +1,3 @@
-
 'use client';
 
 import React, { createContext, useContext, ReactNode } from 'react';
@@ -8,7 +7,7 @@ import { Auth } from 'firebase/auth';
 
 interface FirebaseContextProps {
   firebaseApp: FirebaseApp;
-  database: Database;
+  database: Database | null;
   auth: Auth;
 }
 
@@ -17,7 +16,7 @@ const FirebaseContext = createContext<FirebaseContextProps | undefined>(undefine
 export const FirebaseProvider: React.FC<{
   children: ReactNode;
   firebaseApp: FirebaseApp;
-  database: Database;
+  database: Database | null;
   auth: Auth;
 }> = ({ children, firebaseApp, database, auth }) => {
   return (
@@ -36,5 +35,11 @@ export const useFirebase = () => {
 };
 
 export const useFirebaseApp = () => useFirebase().firebaseApp;
-export const useDatabase = () => useFirebase().database;
+export const useDatabase = () => {
+  const db = useFirebase().database;
+  if (!db) {
+    console.warn("Realtime Database is not initialized. Check your databaseURL in .env");
+  }
+  return db;
+};
 export const useAuth = () => useFirebase().auth;

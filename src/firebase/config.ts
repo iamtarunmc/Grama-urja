@@ -1,6 +1,6 @@
 /**
  * Firebase configuration object.
- * Values MUST be provided in your .env file.
+ * Values are pulled from your .env file for security.
  */
 export const firebaseConfig = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY || "",
@@ -12,12 +12,12 @@ export const firebaseConfig = {
   appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID || ""
 };
 
-// Log warnings instead of errors to avoid triggering the Next.js error overlay
+// Help debug missing environment variables in the browser console
 if (typeof window !== 'undefined') {
   if (!firebaseConfig.apiKey) {
-    console.warn("⚠️ Firebase API Key is missing. Check NEXT_PUBLIC_FIREBASE_API_KEY in .env");
+    console.warn("⚠️ Firebase API Key is missing. Add NEXT_PUBLIC_FIREBASE_API_KEY to .env");
   }
   if (!firebaseConfig.databaseURL) {
-    console.warn("⚠️ Firebase Database URL is missing. Realtime Database features will be disabled until NEXT_PUBLIC_FIREBASE_DATABASE_URL is added to .env");
+    console.warn("⚠️ Firebase Database URL is missing. Add NEXT_PUBLIC_FIREBASE_DATABASE_URL to .env");
   }
 }

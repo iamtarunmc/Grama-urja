@@ -5,14 +5,14 @@ import { firebaseConfig } from './config';
 
 /**
  * Safely initializes Firebase services.
- * Returns null for services if configuration is missing or invalid.
+ * Returns null if the configuration is missing to avoid crashing the app.
  */
 export function initializeFirebase(): {
   firebaseApp: FirebaseApp | null;
   database: Database | null;
   auth: Auth | null;
 } {
-  // Defensive check: If no API key, don't initialize to prevent fatal crash
+  // We need at least an API key to initialize Auth
   const hasApiKey = !!firebaseConfig.apiKey && firebaseConfig.apiKey.length > 10;
   
   if (!hasApiKey) {
@@ -23,10 +23,9 @@ export function initializeFirebase(): {
     const firebaseApp = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
     const auth = getAuth(firebaseApp);
     
-    // Database requires a valid URL
-    const database = firebaseConfig.databaseURL && firebaseConfig.databaseURL.startsWith("https://") 
-      ? getDatabase(firebaseApp, firebaseConfig.databaseURL)
-      : null;
+    // Database requires a valid URL starting with https://
+    const hasDbUrl = !!firebaseConfig.databaseURL && firebaseConfig.databaseURL.startsWith("https://");
+    const database = hasDbUrl ? getDatabase(firebaseApp, firebaseConfig.databaseURL) : null;
 
     return { firebaseApp, database, auth };
   } catch (error) {

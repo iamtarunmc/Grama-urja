@@ -5,7 +5,7 @@ import { ref, onValue } from "firebase/database";
 import { AuthPortal } from "@/components/auth/AuthPortal";
 import { Dashboard } from "@/components/dashboard/Dashboard";
 import { AdminPanel } from "@/components/admin/AdminPanel";
-import { Loader2, AlertCircle, ExternalLink, Settings } from "lucide-react";
+import { Loader2, Settings, ExternalLink, Activity } from "lucide-react";
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -35,7 +35,7 @@ export default function Home() {
     return () => unsubscribe();
   }, [db, user]);
 
-  // Fallback UI for missing Firebase Configuration
+  // If Firebase is not configured, show the setup guide
   if (!auth || !db) {
     return (
       <div className="flex min-h-screen items-center justify-center p-6 bg-slate-50">
@@ -56,7 +56,7 @@ export default function Home() {
               <p className="font-semibold text-sm uppercase tracking-wider text-muted-foreground">Setup Required</p>
               <div className="space-y-2">
                 <p className="text-sm">Please add these variables to your <strong>.env</strong> file:</p>
-                <pre className="bg-black/5 p-3 rounded-lg font-mono text-xs break-all border overflow-x-auto">
+                <pre className="bg-black/5 p-4 rounded-lg font-mono text-xs break-all border overflow-x-auto select-all">
                   NEXT_PUBLIC_FIREBASE_API_KEY=your-api-key{"\n"}
                   NEXT_PUBLIC_FIREBASE_DATABASE_URL=https://your-project.firebaseio.com/
                 </pre>
@@ -71,7 +71,7 @@ export default function Home() {
                 </a>
               </Button>
               <p className="text-center text-sm text-muted-foreground">
-                Restart your dev server after updating environment variables.
+                Restart your dev server (the terminal) after updating environment variables.
               </p>
             </div>
           </CardContent>
@@ -83,8 +83,8 @@ export default function Home() {
   if (authLoading || loadingRole) {
     return (
       <div className="flex flex-col h-screen w-full items-center justify-center bg-background">
-        <Loader2 className="h-12 w-12 animate-spin text-primary" />
-        <p className="mt-4 text-muted-foreground font-medium">Loading Grama-Urja...</p>
+        <Activity className="h-12 w-12 animate-pulse text-primary mb-4" />
+        <p className="text-muted-foreground font-medium animate-pulse">Syncing with Grid...</p>
       </div>
     );
   }
